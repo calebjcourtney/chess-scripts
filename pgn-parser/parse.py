@@ -17,7 +17,7 @@ from chess.pgn import (
     EVAL_REGEX
 )
 
-MOVETEXT_REGEX = re.compile(r"([NBRQK])?([a-h])?([1-8])?(x)?([a-h][1-8])(=[NBRQK])?(\+|#)?|O-O(-O)?")
+MOVETEXT_REGEX = re.compile(r"([NBRQK])?([a-h])?([1-8])?(x)?([a-h][1-8])(=[NBRQK])?(\+|#)?|O-O(-O)?(\+|#)?")
 
 
 class Move:
