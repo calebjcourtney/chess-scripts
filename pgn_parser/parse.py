@@ -42,8 +42,17 @@ class Game:
     headers: Dict[str, str] = dict()
     moves: List[Move] = []
 
+    def __str__(self) -> str:
+        output = ""
+        for key, value in self.headers.items():
+            output += f'[{key} "{value}"]\n'
+
+        output += f"\n{self.moves}\n"
+
+        return output
+
     def __repr__(self):
-        return json.dumps({"moves": str(self.moves), "headers": str(self.headers)})
+        return self.__str__()
 
     def to_json(self):
         return json.dumps(
