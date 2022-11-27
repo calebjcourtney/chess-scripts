@@ -24,11 +24,12 @@ archives = requests.get(
     verify=False
 ).json()["archives"]
 archives.sort(reverse=True)
+archives = []
 
 
 def game_is_match(game: chess.pgn.Game) -> bool:
     assert isinstance(game, chess.pgn.Game)
-    board = chess.Board()
+    board = game.board()
     if board.fen() == args.fen:
         return True
 
@@ -41,15 +42,24 @@ def game_is_match(game: chess.pgn.Game) -> bool:
     return False
 
 
+def read_game(pgn):
+    try:
+        game = chess.pgn.read_game(pgn)
+    except AssertionError:
+        return read_game()
+
+    return game
+
+
 for url in tqdm(archives):
     pgn_response = requests.get(f"{url}/pgn", verify=False)
 
     pgn = StringIO(pgn_response.text)
 
-    game = chess.pgn.read_game(pgn)
+    game = read_game(pgn)
 
     while game is not None and not game_is_match(game):
-        game = chess.pgn.read_game(pgn)
+        game = read_game(pgn)
 
     if game is not None and game_is_match(game):
         break
