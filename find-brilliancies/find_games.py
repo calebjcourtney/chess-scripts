@@ -29,19 +29,19 @@ PIECE_VALUE_MAP = {
 }
 
 
-def value_of_defenders(board, move):
-    squares = [square for square in board.attackers(board.turn, move.to_square) if square != move.from_square]
-    return len(squares)
-
-
-def value_of_attackers(board, move):
+def number_of_defenders(board, move):
     squares = [square for square in board.attackers(board.turn ^ 1, move.to_square)]
     return len(squares)
 
 
+def number_of_attackers(board, move):
+    squares = [square for square in board.attackers(board.turn, move.to_square)]
+    return len(squares)
+
+
 def piece_is_underdefended(board, move):
-    defenders = value_of_defenders(board, move)
-    attackers = value_of_attackers(board, move)
+    defenders = number_of_defenders(board, move)
+    attackers = number_of_attackers(board, move)
 
     return attackers > defenders
 
@@ -77,37 +77,56 @@ def move_is_piece_sacrifice(board, move):
         return False
 
     # the square is underdefended
+    board.push(move)
     if not piece_is_underdefended(board, move):
+        board.pop()
         return False
+    board.pop()
 
     return True
 
 
-def best_move_is_played(move, engine_eval):
-    return engine_eval[0]['pv'][0] == move
+def best_move_is_played(board, san, engine_eval):
+    max_eval = max([record['score'].pov(board.turn).score(mate_score=100) for record in engine_eval])
+    return san in [
+        board.san(record['pv'][0])
+        for record in engine_eval
+        if abs(record['score'].pov(board.turn).score(mate_score=100) - max_eval) < 50
+    ]
 
 
 def losing_if_played(board, engine_eval):
-    return engine_eval[0]['score'].pov(board.turn).score(mate_score=100) > 0
+    return engine_eval[0]['score'].pov(board.turn).score(mate_score=100) < 300
 
 
-def not_completely_winning(board, engine_eval):
-    return engine_eval[1]['score'].pov(board.turn).score(mate_score=100) > 0
+def is_completely_winning(board, engine_eval):
+    return (
+        True if len(engine_eval) <= 1
+        else engine_eval[1]['score'].pov(board.turn).score(mate_score=100) > 0
+    )
 
 
 def move_is_brilliant(board, move, engine):
     if not move_is_piece_sacrifice(board, move):
         return False
 
-    engine_eval = engine.analyse(board, chess.engine.Limit(depth=18), multipv=2)
-    uci = board.uci(move)
-    if not best_move_is_played(uci, engine_eval):
+    engine_eval = engine.analyse(board, chess.engine.Limit(depth=18), multipv=3)
+    san = board.san(move)
+    if not best_move_is_played(board, san, engine_eval):
         return False
+
+    if losing_if_played(board, engine_eval):
+        return False
+
+    if is_completely_winning(board, engine_eval):
+        return False
+
+    print(board.san(move))
 
     return True
 
 
-def game_has_brilliant(game, player_color, engine):
+def game_has_brilliant_move(game, player_color, engine):
     board = game.board()
     for move in game.mainline_moves():
         if board.turn == player_color and move_is_brilliant(board, move, engine):
@@ -135,7 +154,7 @@ def main(username, engine_path):
         f"https://api.chess.com/pub/player/{username}/games/archives",
         verify=False
     ).json()["archives"]
-    archives.sort(reverse=True)
+    archives.sort()
 
     for url in tqdm(archives):
         pgn_response = requests.get(f"{url}/pgn", verify=False)
@@ -146,7 +165,7 @@ def main(username, engine_path):
 
         while game is not None:
             player_color = chess.WHITE if username == game.headers["White"] else chess.BLACK
-            if game_has_brilliant(game, player_color, engine):
+            if game_has_brilliant_move(game, player_color, engine):
                 print(game.headers["Link"])
                 brilliant_games.append(game.headers["Link"])
 
@@ -159,9 +178,12 @@ def main(username, engine_path):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("chesscom_username", type=str, help="your chess.com username")
+    parser.add_argument("--chesscom_username", type=str, help="your chess.com username", default=None)
+    parser.add_argument("--file_path", type=str, help="path to source file to analyze moves", default=None)
     parser.add_argument("--engine", type=str, default="/usr/local/bin/stockfish", help="path to your stockfish uci engine")
 
     args = parser.parse_args()
+
+    assert args.chesscom_username is not None or args.file_path is not None
 
     main(args.chesscom_username, args.engine)
