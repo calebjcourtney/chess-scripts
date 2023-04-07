@@ -130,3 +130,9 @@ dmypy.json
 
 # pgn files
 *.bz2
+
+*/raw_game/*
+*/titled_games/*
+
+*.json
+*.pgn
