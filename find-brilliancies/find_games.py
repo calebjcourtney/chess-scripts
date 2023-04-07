@@ -154,7 +154,7 @@ def main(username, engine_path):
         f"https://api.chess.com/pub/player/{username}/games/archives",
         verify=False
     ).json()["archives"]
-    archives.sort()
+    archives.sort(reverse=True)
 
     for url in tqdm(archives):
         pgn_response = requests.get(f"{url}/pgn", verify=False)
