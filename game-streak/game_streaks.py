@@ -1,14 +1,15 @@
 """
 Get the player with the longest streak of wins in the given format.
 """
+from typing import Tuple
 
 import argparse
 import json
-import os
 import re
+import sys
 
-from tqdm import tqdm
 import requests
+from tqdm import tqdm
 
 parser = argparse.ArgumentParser()
 parser.add_argument("format", type=str, choices=["bullet", "blitz", "rapid"])
@@ -28,48 +29,47 @@ def get_titled_players() -> list:
     return players
 
 
+def get_user_streak(fmt: str, username: str) -> Tuple[str, int]:
+    response = requests.get(f"https://www.chess.com/stats/live/{fmt}/{username}/0")
+    assert response.status_code == 200
+
+    stats_raw = response.text
+    result = streak_find.search(stats_raw)
+    if result is None:
+        return {
+            "username": username,
+            "streak": 0
+        }
+
+    streak = int(result.group(1))
+
+    return {
+        "username": username,
+        "streak": streak
+    }
+
+
 def main() -> None:
     titled_players = get_titled_players()
 
-    if os.path.exists("data.json"):
-        with open("data.json", "r") as in_file:
-            processed_info = json.load(in_file)
-            longest_streak = processed_info["longest_streak"]
-            title_holders = processed_info["title_holders"]
-
-    else:
-        longest_streak = 0
-        title_holders = []
+    processed_data = json.load(open("data.json", "r"))
+    processed_players = [player["username"] for player in processed_data]
 
     for player in tqdm(titled_players):
-        if any([player < holder for holder in title_holders]):
+        if player in processed_players:
             continue
 
-        stats_raw = requests.get(f"https://www.chess.com/stats/live/{args.format}/{player}/0").text
-        result = streak_find.search(stats_raw)
-        if result is None:
-            continue
-
-        player_longest_streak = 0 if result.group(1) is None else int(result.group(1))
-
-        if player_longest_streak > longest_streak:
-            longest_streak = player_longest_streak
-            title_holders = [player]
-
-        elif player_longest_streak == longest_streak:
-            title_holders.append(player)
+        response = get_user_streak(args.format, player)
+        processed_data.append(response)
 
         with open("data.json", "w+") as out_file:
-            json.dump(
-                {
-                    "longest_streak": longest_streak,
-                    "title_holders": title_holders
-                },
-                out_file
-            )
+            json.dump(processed_data, out_file, indent=2)
 
-    print(f"Longest streak of wins: {longest_streak}")
-    print(f"Usernames holding record: {', '.join(title_holders)}")
+    processed_data.sort(key=lambda x: x["streak"], reverse=True)
+    with open("data.json", "w+") as out_file:
+        json.dump(processed_data, out_file)
+
+    print(processed_data[0], file=sys.stderr)
 
 
 if __name__ == '__main__':
