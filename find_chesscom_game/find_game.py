@@ -48,6 +48,9 @@ def game_is_match(game: chess.pgn.Game) -> bool:
 for url in tqdm(archives):
     data = requests.get(f"{url}").json()
     for game_json in data["games"]:
+        if "pgn" not in game_json:
+            continue
+
         game = chess.pgn.read_game(StringIO(game_json["pgn"]))
 
         if game_is_match(game):

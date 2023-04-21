@@ -55,6 +55,8 @@ def main() -> None:
     processed_data = json.load(open("data.json", "r"))
     processed_players = [player["username"] for player in processed_data]
 
+    titled_players = [player for player in titled_players if player not in processed_players]
+
     for player in tqdm(titled_players):
         if player in processed_players:
             continue
