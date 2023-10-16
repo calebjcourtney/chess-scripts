@@ -37,14 +37,20 @@ def main(username, engine_path):
     position_counts = defaultdict(int)
     engine = chess.engine.SimpleEngine.popen_uci(engine_path)
 
+    url = f"https://api.chess.com/pub/player/{username}/games/archives"
     archives = requests.get(
-        f"https://api.chess.com/pub/player/{username}/games/archives",
-        verify=False
-    ).json()["archives"]
+        url,
+        headers={'User-Agent': "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36"}
+    )
+    try:
+        archives = archives.json()["archives"]
+    except Exception:
+        print(archives.text)
+        print(archives.url)
     archives.sort()
 
     for url in tqdm(archives):
-        archive_response = requests.get(f"{url}", verify=False)
+        archive_response = requests.get(f"{url}")
         for game_json in archive_response.json()["games"]:
             # not a rated game
             if not game_json["rated"]:
@@ -77,9 +83,12 @@ def main(username, engine_path):
         board = chess.Board(position)
         info = engine.analyse(board, chess.engine.Limit(depth=10))
 
-        if info["score"].relative.cp > 100:
-            print(position)
-            print(position_counts[position])
+        try:
+            if info["score"].relative.cp > 100:
+                print(position)
+                print(position_counts[position])
+        except Exception:
+            pass
 
     engine.close()
 
