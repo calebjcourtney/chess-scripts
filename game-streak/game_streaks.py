@@ -21,7 +21,8 @@ streak_find = re.compile(r'"winningStreak":(\d+)')
 def get_titled_players() -> list:
     players = []
     for title in ["GM", "WGM", "IM", "WIM", "FM", "WFM", "NM", "WNM", "CM", "WCM"]:
-        response = requests.get(f"https://api.chess.com/pub/titled/{title}").json()
+        response = requests.get(f"https://api.chess.com/pub/titled/{title}", headers={'User-Agent': "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36"})
+        response = response.json()
         players.extend(response["players"])
 
     players.sort()
@@ -51,8 +52,11 @@ def get_user_streak(fmt: str, username: str) -> Tuple[str, int]:
 
 def main() -> None:
     titled_players = get_titled_players()
+    try:
+        processed_data = json.load(open("data.json", "r"))
+    except FileNotFoundError:
+        processed_data = []
 
-    processed_data = json.load(open("data.json", "r"))
     processed_players = [player["username"] for player in processed_data]
 
     titled_players = [player for player in titled_players if player not in processed_players]
