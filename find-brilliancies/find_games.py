@@ -25,7 +25,11 @@ PIECE_VALUE_MAP = {
     chess.KNIGHT: 3,
     chess.ROOK: 5,
     chess.BISHOP: 3,
-    chess.PAWN: 1
+    chess.PAWN: 1,
+}
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36"
 }
 
 
@@ -51,7 +55,7 @@ def piece_is_moved(board, move) -> bool:
         chess.KNIGHT,
         chess.BISHOP,
         chess.ROOK,
-        chess.QUEEN
+        chess.QUEEN,
     ]
 
 
@@ -59,8 +63,7 @@ def captures_greater_piece(board, move):
     piece_moved_value = PIECE_VALUE_MAP[board.piece_at(move.from_square).piece_type]
     target_square_piece = board.piece_at(move.to_square)
     target_value = PIECE_VALUE_MAP.get(
-        None if target_square_piece is None else target_square_piece.piece_type,
-        0
+        None if target_square_piece is None else target_square_piece.piece_type, 0
     )
 
     # captures a more valuable piece or a piece of equal value
@@ -87,22 +90,28 @@ def move_is_piece_sacrifice(board, move):
 
 
 def best_move_is_played(board, san, engine_eval):
-    max_eval = max([record['score'].pov(board.turn).score(mate_score=100) for record in engine_eval])
+    max_eval = max(
+        [
+            record["score"].pov(board.turn).score(mate_score=100)
+            for record in engine_eval
+        ]
+    )
     return san in [
-        board.san(record['pv'][0])
+        board.san(record["pv"][0])
         for record in engine_eval
-        if abs(record['score'].pov(board.turn).score(mate_score=100) - max_eval) < 50
+        if abs(record["score"].pov(board.turn).score(mate_score=100) - max_eval) < 50
     ]
 
 
 def losing_if_played(board, engine_eval):
-    return engine_eval[0]['score'].pov(board.turn).score(mate_score=100) < 300
+    return engine_eval[0]["score"].pov(board.turn).score(mate_score=100) < 300
 
 
 def is_completely_winning(board, engine_eval):
     return (
-        True if len(engine_eval) <= 1
-        else engine_eval[1]['score'].pov(board.turn).score(mate_score=100) > 0
+        True
+        if len(engine_eval) <= 1
+        else engine_eval[1]["score"].pov(board.turn).score(mate_score=100) > 0
     )
 
 
@@ -152,19 +161,21 @@ def main(username, engine_path):
 
     archives = requests.get(
         f"https://api.chess.com/pub/player/{username}/games/archives",
-        verify=False
+        headers=HEADERS,
     ).json()["archives"]
     archives.sort(reverse=True)
 
     for url in tqdm(archives):
-        pgn_response = requests.get(f"{url}/pgn", verify=False)
+        pgn_response = requests.get(f"{url}/pgn", headers=HEADERS)
 
         pgn = StringIO(pgn_response.text)
 
         game = read_game(pgn)
 
         while game is not None:
-            player_color = chess.WHITE if username == game.headers["White"] else chess.BLACK
+            player_color = (
+                chess.WHITE if username == game.headers["White"] else chess.BLACK
+            )
             if game_has_brilliant_move(game, player_color, engine):
                 print(game.headers["Link"])
                 brilliant_games.append(game.headers["Link"])
@@ -176,11 +187,23 @@ def main(username, engine_path):
     engine.close()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--chesscom_username", type=str, help="your chess.com username", default=None)
-    parser.add_argument("--file_path", type=str, help="path to source file to analyze moves", default=None)
-    parser.add_argument("--engine", type=str, default="/usr/local/bin/stockfish", help="path to your stockfish uci engine")
+    parser.add_argument(
+        "--chesscom_username", type=str, help="your chess.com username", default=None
+    )
+    parser.add_argument(
+        "--file_path",
+        type=str,
+        help="path to source file to analyze moves",
+        default=None,
+    )
+    parser.add_argument(
+        "--engine",
+        type=str,
+        default="/usr/local/bin/stockfish",
+        help="path to your stockfish uci engine",
+    )
 
     args = parser.parse_args()
 
