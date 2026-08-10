@@ -2,6 +2,7 @@ import random
 import os
 import json
 
+import pandas as pd
 from tqdm import tqdm
 import requests
 from statistics import median
@@ -17,16 +18,6 @@ HEADERS = {
 }
 
 TOURNAMENT_ID_CONTAINS = "titled-tuesday"
-TOURNAMENT_URLS = [
-    "https://api.chess.com/pub/tournament/early-titled-tuesday-blitz-january-02-2024-4490237/11",
-    "https://api.chess.com/pub/tournament/late-titled-tuesday-blitz-january-02-2024-4490238/11",
-    "https://api.chess.com/pub/tournament/early-titled-tuesday-blitz-january-09-2024-4490239/11",
-    "https://api.chess.com/pub/tournament/late-titled-tuesday-blitz-january-09-2024-4490240/11",
-    "https://api.chess.com/pub/tournament/early-titled-tuesday-blitz-january-16-2024-4503497/11",
-    "https://api.chess.com/pub/tournament/late-titled-tuesday-blitz-january-16-2024-4503498/11",
-    "https://api.chess.com/pub/tournament/early-titled-tuesday-blitz-january-23-2024-4518064/11",
-    "https://api.chess.com/pub/tournament/late-titled-tuesday-blitz-january-23-2024-4518065/11",
-]
 TIME_CONTROL = "blitz"
 
 
@@ -55,12 +46,6 @@ def expected_score(opponent_ratings: list[float], own_rating: float) -> float:
     )
 
 
-print("vs 2216: ", expected_score([2216], 1932))
-print("vs 1874: ", expected_score([1874], 1932))
-print("vs 1731: ", expected_score([1731], 1932))
-print("vs all:", expected_score([2216, 1874, 1731], 1932))
-
-
 def performance_rating(opponent_ratings: list[float], score: float) -> int:
     """Calculate mathematically perfect performance rating with binary search."""
     lo, hi = 0, 10000
@@ -74,9 +59,6 @@ def performance_rating(opponent_ratings: list[float], score: float) -> int:
             hi = mid
 
     return round(mid)
-
-
-print(performance_rating([2216, 1874, 1731], 1.5))
 
 
 def get_tournament_players() -> list[str]:
@@ -99,10 +81,10 @@ def get_user_archives(username):
 
 
 def get_tt_games(username):
-    archives = get_user_archives(username)[-3:]
+    archives = get_user_archives(username)[-12:]
     for url in archives:
         file_name = "_".join(url.split("/")[-6:]) + ".json"
-        if file_name not in os.listdir("user_archives"):
+        if file_name not in os.listdir("user_archives") or file_name == archives[-1]:
             response = requests.get(url, headers=HEADERS)
             with open(f"user_archives/{file_name}", "w") as f:
                 f.write(response.text)
@@ -129,57 +111,33 @@ def get_rating_corr():
     print(f"ELO ACCURACY CORRELATION: {pearsonr(*zip(*elo_accuracy))}")
 
 
-def analyze_data(username):
-    files = [filename for filename in ARCHIVE_FILES if username in filename]
+def analyze_data(username, opponents):
+    files = [filename for filename in ARCHIVE_FILES if f"_{username}_" in filename]
 
-    games_data = {
-        "tt_win_accuracies": [],
-        "tt_draw_accuracies": [],
-        "tt_loss_accuracies": [],
-        "win_accuracies": [],
-        "draw_accuracies": [],
-        "loss_accuracies": [],
-    }
+    output = {opp: {"win": 0, "lose": 0, "draw": 0} for opp in opponents}
 
     for file_name in files:
         with open(f"user_archives/{file_name}", "r") as month_data:
             games = json.load(month_data)["games"]
             for game in games:
-                if "accuracies" not in game:
-                    continue
-
                 color = (
                     "white"
                     if username.lower() == game["white"]["username"].lower()
                     else "black"
                 )
+                opponent = game["black" if color == "white" else "white"]["username"]
+                if opponent.lower() not in opponents:
+                    continue
+
                 result = GAME_CODES.get(game[color]["result"], "other")
 
                 if (
                     "tournament" in game
                     and TOURNAMENT_ID_CONTAINS in game["tournament"]
                 ):
-                    if result == "win":
-                        games_data["tt_win_accuracies"].append(
-                            game["accuracies"][color]
-                        )
-                    elif result == "lose":
-                        games_data["tt_loss_accuracies"].append(
-                            game["accuracies"][color]
-                        )
-                    elif result == "draw":
-                        games_data["tt_draw_accuracies"].append(
-                            game["accuracies"][color]
-                        )
-                else:
-                    if result == "win":
-                        games_data["win_accuracies"].append(game["accuracies"][color])
-                    elif result == "lose":
-                        games_data["loss_accuracies"].append(game["accuracies"][color])
-                    elif result == "draw":
-                        games_data["draw_accuracies"].append(game["accuracies"][color])
+                    output[opponent.lower()][result] += 1
 
-    return games_data
+    return output
 
 
 def summarize_data(player_results: list[dict[str, list]]):
@@ -250,38 +208,53 @@ def summarize_data(player_results: list[dict[str, list]]):
     }
 
 
+def count_tt_games(player):
+    count = 0
+    for file_name in os.listdir("user_archives"):
+        if f"_{player}_" in file_name:
+            data = json.load(open(f"user_archives/{file_name}"))
+            for game in data["games"]:
+                if game["time_control"] == "180+1":
+                    print(game)
+                    count += 1
+
+    return count
+
+
 def main():
-    players = get_tournament_players()
+    # players = get_tournament_players()
+    players = ['penguingm1']
 
     # for username in tqdm(players):
     #     get_tt_games(username)
 
     results: list[dict[str, list]] = []
 
-    for username in tqdm(players):
-        user_games_data = analyze_data(username)
-        enough_games = all(
-            [
-                (
-                    len(user_games_data["tt_win_accuracies"])
-                    + len(user_games_data["tt_loss_accuracies"])
-                    + len(user_games_data["tt_draw_accuracies"])
-                )
-                > 50,
-                (
-                    len(user_games_data["win_accuracies"])
-                    + len(user_games_data["loss_accuracies"])
-                    + len(user_games_data["draw_accuracies"])
-                )
-                > 50,
-            ]
-        )
-        if enough_games:
-            results.append(user_games_data)
+    opponents = [
+        "magnuscarlsen",
+        "hikaru",
+        "firouzja2003",
+        "polish_fighter3000",
+        "lachesisq",
+        "fabianocaruana",
+        "gmwso",
+        "duhless",
+        "oleksandr_bortnyk",
+        "lyonbeast",
+    ]
 
-    print(json.dumps(summarize_data(results), indent=2))
+    user_games_data = analyze_data('penguingm1', opponents)
+    print(user_games_data)
 
-    get_rating_corr()
+    output = []
+    for opponent, values in user_games_data.items():
+        values["opponent"] = opponent
+        output.append(values)
+
+    df = pd.DataFrame(output)
+    print(df)
+
+
 
 
 if __name__ == "__main__":

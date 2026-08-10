@@ -4,8 +4,6 @@ from pathlib import Path
 import json
 
 import requests
-import pandas as pd
-import matplotlib.pyplot as plt
 
 
 def expected_score(opponent_ratings: list[float], own_rating: float) -> float:
@@ -18,6 +16,11 @@ def expected_score(opponent_ratings: list[float], own_rating: float) -> float:
 
 def performance_rating(opponent_ratings: list[float], score: float) -> int:
     """Calculate mathematically perfect performance rating with binary search."""
+    if score == len(opponent_ratings):
+        return sum(opponent_ratings) / len(opponent_ratings) + 800
+    elif score == 0:
+        return max(100, min(opponent_ratings) - 400)
+
     lo, hi = 0, 10000
 
     while hi - lo > 0.0001:
@@ -33,29 +36,21 @@ def performance_rating(opponent_ratings: list[float], score: float) -> int:
 
 def main():
     opponent_ratings = [
-        2325,
-        2351,
-        2452,
-        2406,
-        2368,
-        2474,
-        2388,
-        2400,
-        2304,
+        293,
+        1786,
+        1186,
+        1100,
+        1897,
     ]
     print(sum(opponent_ratings) / len(opponent_ratings))
 
     im_perf = 2450
     gm_perf = 2600
 
-    score = 0.5
-    while score < len(opponent_ratings):
-        perf = performance_rating(opponent_ratings, score)
-        if perf >= gm_perf:
-            print(f"Score: {score}, Performance: {perf}")
-            break
-
-        score += 0.5
+    score = 4.0
+    perf = performance_rating(opponent_ratings, score)
+    print(perf)
+    print(f"expected score: {expected_score(opponent_ratings, 1558)}")
 
 
 if __name__ == "__main__":
